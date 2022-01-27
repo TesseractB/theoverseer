@@ -13,6 +13,7 @@ client.invites = {}; //Invite Tracking
 */
 const dotenv = require("dotenv");
 dotenv.config();
+const fetch = require("node-fetch")
 //Pastebin Initialization
 const PasteClient = require("pastebin-api").default;
 const pastebinClient = new PasteClient(process.env.PASTEBIN_API_KEY)
@@ -94,6 +95,82 @@ client.on("messageCreate", async message => {
             }
         }
     }
+    if (command === "define") {
+        //test
+        if (!args[0]) {return message.reply("No word found.")}
+        var word = args[0]
+        var data = await getWord(word)
+        if (!data[0]) {return message.reply("Sorry, I couldn't find a definition for that word")}
+        
+        const embed = new Discord.MessageEmbed()
+        
+        var wordData = {}
+        wordData.meanings = []
+        /**
+         * wordData.meanings: [{
+         *     partOfSpeech: (Part of Speech),
+         *     definitions: [
+         *         {
+         *             definition: (definition),
+         *             example: (example),
+         *             synonyms: [],
+         *             antonyms: []
+         *         }
+         *     ]
+         * }]
+         */
+        
+        for (const meaning of data[0].meanings) {
+            var meaningData =  {
+                    //Create new object, then assign to original object
+                    partOfSpeech: _s.capitalize(meaning.partOfSpeech)
+                }
+            var defArr = [];
+            for (const definition of meaning.definitions) {
+                var defData = {
+                    definition: _s.capitalize(definition.definition),
+                    example: _s.capitalize(definition.example),
+                    synonyms: definition.synonyms,
+                    antonyms: definition.antonyms
+                }
+                defArr.push(defData)
+            }
+            meaningData.definitions = defArr;
+            wordData.meanings.push(meaningData)
+        }
+        wordData.pronunciation = "/ " + data[0].phonetic + " /"
+        var phoneticsarr = data[0].phonetics[0]
+        wordData.pronunciationAudioURL = phoneticsarr.audio.slice(2)
+        wordData.origin = data[0].origin
+        wordData.word = data[0].word
+        embed.setAuthor({name: _s.capitalize(wordData.word)})
+        var descArr = []
+        descArr.push(`Pronunciation: ${wordData.pronunciation}`)
+        descArr.push("\n")
+        descArr.push(`Origin: ${wordData.origin}`)
+        descArr.push("\n")
+        for (const meaning of wordData.meanings) {
+            var tempArr = []
+            tempArr.push(`As a(n) ${meaning.partOfSpeech}:`)
+            for (const def of meaning.definitions) {
+                tempArr.push('```')
+                tempArr.push(`Definition: ${def.definition}`)
+                tempArr.push("\n")
+                tempArr.push(`Example: ${def.example}`)
+                tempArr.push("\n")
+                tempArr.push(`Synonyms: ${def.synonyms.join(", ")}`)
+                tempArr.push(`Antonyms: ${def.antonyms.join(", ")}`)
+                tempArr.push('```')
+            }
+            descArr.push(tempArr.join("\n"))
+        }
+        embed.setDescription(descArr.join("\n"))
+        embed.setColor("FAA41B")
+        message.channel.send({embeds: [embed]})
+
+    }
+
+
 
 })
 
@@ -481,4 +558,10 @@ function lockChannelClean (channel, message) {
 function unlockChannelClean (channel, message) {
 
     channel.permissionOverwrites.edit(channel.guild.roles.cache.get(/* Verified Role */), { SEND_MESSAGES: true })
+}
+async function getWord (word) {
+    var response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`)
+    var data = await response.json()
+    
+    return data
 }
